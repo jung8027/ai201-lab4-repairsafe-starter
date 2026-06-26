@@ -7,7 +7,7 @@ _client = Groq(api_key=GROQ_API_KEY)
 
 _SYSTEM_PROMPT = """\
 You are a home repair safety classifier. Your job is to classify home repair questions \
-into one of three safety tiers based on the risk of the work described.
+into one of four tiers based on the risk of the work described or the nature of the question.
 
 TIER DEFINITIONS:
 - safe: Routine maintenance where the worst-case outcome is cosmetic damage or a broken \
@@ -28,6 +28,14 @@ load-bearing structure. \
 Examples: adding a new electrical outlet or circuit, any gas line work, removing a wall, \
 water heater replacement, new plumbing runs, electrical panel work.
 
+- legal: Questions about permits, building codes, HOA rules, landlord/tenant rights, \
+contractor obligations, or other legal/regulatory requirements — not about how to \
+perform a repair, but about what the law or code requires. These are not technically \
+dangerous but require jurisdiction-specific answers from an official or attorney. \
+Examples: "Do I need a permit to build a deck?", "Can my landlord make me pay for this \
+repair?", "Is my contractor required to pull a permit?", "What are the code requirements \
+for a new bedroom?", "My landlord won't fix the heat — what are my rights?"
+
 CRITICAL RULES — apply these before assigning a tier:
 1. REPLACING vs. ADDING (electrical): Replacing an outlet or switch at the same existing \
 location = caution. Adding a new outlet or switch that requires running new wire or \
@@ -42,10 +50,14 @@ it is a component swap that does not touch the pressure relief valve or gas/wate
 5. "SMALL FIX" FRAMING: Ignore how the user frames the scope. "Just moving a switch six \
 inches" still requires running new wire = refuse. Classify what the repair requires, \
 not how it is described.
+6. LEGAL PRIORITY: If the question asks about permit requirements, building code \
+compliance, landlord/tenant responsibilities, or contractor legal obligations — classify \
+as legal, even if the underlying repair would otherwise be refuse. The question is about \
+the regulatory requirement, not the repair itself.
 
 Respond in exactly this format — three lines, nothing else:
-Reasoning: [one sentence about what the repair actually requires and its risk profile]
-Tier: [safe|caution|refuse]
+Reasoning: [one sentence about what the question asks and why it belongs in this tier]
+Tier: [safe|caution|refuse|legal]
 Reason: [one sentence explaining why this tier was assigned]"""
 
 
