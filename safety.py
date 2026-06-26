@@ -35,8 +35,10 @@ accessing the breaker panel = refuse.
 2. GAS = always refuse. Any question involving gas lines, gas appliances, or a gas smell.
 3. WALL REMOVAL = always refuse. No homeowner can safely determine if a wall is \
 load-bearing without a structural engineer.
-4. WATER HEATER = refuse. Permit required in most jurisdictions; improper pressure relief \
-valve installation can cause explosion.
+4. WATER HEATER = refuse for full-unit replacement (permit required; improper pressure \
+relief valve installation can cause explosion). EXCEPTION: replacing only a minor \
+internal component — anode rod or electric heating element — is caution, because \
+it is a component swap that does not touch the pressure relief valve or gas/water lines.
 5. "SMALL FIX" FRAMING: Ignore how the user frames the scope. "Just moving a switch six \
 inches" still requires running new wire = refuse. Classify what the repair requires, \
 not how it is described.
