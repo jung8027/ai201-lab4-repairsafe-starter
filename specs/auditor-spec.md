@@ -27,15 +27,9 @@ Record every interaction — question, safety tier, and response preview — to 
 
 ## Design Decisions
 
-*Complete the fields below before writing any code.*
-
 ---
 
 ### Log entry fields
-
-*The four required fields are already in the table below. Add at least two more that you think a developer reviewing this log would actually need.*
-
-*Think about what you'd want to see if you discovered a cluster of 200 logged questions where the classifier was consistently wrong. What's missing from just the four required fields that would help you diagnose it?*
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -43,37 +37,73 @@ Record every interaction — question, safety tier, and response preview — to 
 | `"tier"` | `str` | Safety tier assigned to this question |
 | `"question"` | `str` | The user's question, truncated to 300 characters |
 | `"response_preview"` | `str` | First 200 characters of the generated response |
-| `[your field]` | `[type]` | [description] |
-| `[your field]` | `[type]` | [description] |
+| `"response_length"` | `int` | Full character count of the response before truncation |
+| `"question_truncated"` | `bool` | Whether the question exceeded 300 chars and was cut off |
+
+**Why these two extra fields:**
+
+`response_length` — A developer scanning for misrouted refuse-tier questions can spot anomalously long responses instantly: a refuse response that's 2,000 characters long is suspicious (it's probably providing procedural guidance). Without the full length, the 200-char preview alone doesn't reveal the scope of what was generated.
+
+`question_truncated` — Without a flag, you cannot tell from the log entry whether the `question` field contains the complete text or a fragment. If a question was misclassified and it was also truncated, the log entry is misleading — it looks complete but is missing the tail that might explain the misclassification. The flag makes the data quality explicit.
 
 ---
 
 ### Why these truncation limits?
 
-*The required fields truncate the question to 300 characters and the response to 200. Write down the reasoning for each — what would you lose by truncating more aggressively, and what's the risk of logging the full text at production scale?*
-
 ```
-[your answer here]
+Question — 300 characters:
+Most home repair questions fit comfortably within 300 chars (typical: 50–150 chars).
+Truncating more aggressively (e.g., 100 chars) would cut off multi-sentence questions
+that include the context needed to diagnose a misclassification — you'd lose "...and
+I want to run it from the panel" at the end of an "add a new outlet" question, which
+is exactly the part that determines the tier.
+
+At production scale, logging full question text carries two risks: (1) users might
+inadvertently include PII in their questions, and (2) prompt injection attempts would
+be fully preserved in the log. 300 chars captures diagnostic signal while limiting
+both risks.
+
+Response — 200 characters:
+The audit log's job is to verify tier routing, not to preserve response content.
+200 chars is typically enough to see the first sentence or two — enough to tell if a
+refuse question got instructional content ("First, shut off the breaker and then..."),
+or if a safe question got an inappropriate refusal. Logging full responses at scale
+would grow the file to gigabytes quickly: a 1,000-char average response × 10,000
+daily interactions = 10MB/day of response text alone, compounding indefinitely.
 ```
 
 ---
 
 ### Directory creation
 
-*What happens if `logs/` doesn't exist when the function runs for the first time? How will you handle that — and why is this worth thinking about at all?*
-
 ```
-[your answer here]
+Call os.makedirs() with exist_ok=True on the logs/ directory before opening the file
+for writing. Using exist_ok=True makes it safe to call on every invocation — no
+conditional check needed, no race condition. If the directory already exists, it's a
+no-op. If it doesn't exist, it's created.
+
+Without this, the first call to log_interaction() raises FileNotFoundError because
+open() cannot create intermediate directories. The logs/.gitkeep file keeps the
+directory tracked in git, but Python's file I/O still requires the directory to exist
+at runtime — a fresh clone without .gitkeep would fail silently on the first write
+if this isn't handled.
 ```
 
 ---
 
 ### Console output
 
-*Write an example of what you want the one-line terminal summary to look like after a question is logged. Be specific about format.*
-
 ```
-[your example output here]
+Format:
+[LOGGED] tier={tier} | "{question_preview}" → {response_length} chars
+
+Where question_preview is the first 60 characters of the question followed by "..."
+if the question is longer than 60 characters.
+
+Examples:
+[LOGGED] tier=safe    | "How do I patch a small hole in drywall?" → 1243 chars
+[LOGGED] tier=caution | "Can I replace my bathroom faucet?" → 2187 chars
+[LOGGED] tier=refuse  | "How do I fix a gas line that smells like it is leaking?" → 891 chars
 ```
 
 ---
@@ -85,11 +115,17 @@ Record every interaction — question, safety tier, and response preview — to 
 **The actual log file content after 3 test queries (paste the three JSON lines):**
 
 ```
-[your answer here]
+{"timestamp": "2026-06-26T00:36:50.990144Z", "tier": "safe", "question": "How do I patch a small hole in drywall?", "response_preview": "To patch a small hole in drywall, you'll need the following tools and materials:\n- Drywall repair compound (also known as spackling compound)\n- Sandpaper (medium-grit and fine-grit)\n- Paint (matching ", "response_length": 2718, "question_truncated": false}
+{"timestamp": "2026-06-26T00:36:54.210862Z", "tier": "caution", "question": "Can I replace my bathroom faucet?", "response_preview": "Replacing a bathroom faucet can be a manageable task for a motivated homeowner, but it's essential to approach the project with caution. Mistakes can lead to costly water damage, injury from sharp edg", "response_length": 3100, "question_truncated": false}
+{"timestamp": "2026-06-26T00:36:55.808210Z", "tier": "refuse", "question": "How do I fix a gas line that smells like it is leaking?", "response_preview": "I must emphasize that a gas line leak is a serious safety hazard that requires immediate attention. The risks associated with a gas leak include explosion, fire, and asphyxiation. If you smell gas, it", "response_length": 1289, "question_truncated": false}
 ```
 
 **One field you'd add to the log if this were a real production system handling 10,000 questions per day:**
 
 ```
-[your answer here]
+"session_id" — a UUID or hashed identifier for the user session. At 10,000 questions
+per day, individual question analysis is not enough; you need to detect sequences —
+a user who rephrases a refuse-tier question three times in a row is likely attempting
+to circumvent the safety layer. Without a session identifier, the log entries look
+like 10,000 independent events and the pattern is invisible.
 ```
